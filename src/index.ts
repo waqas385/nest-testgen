@@ -4,7 +4,7 @@ import { generateTests } from './generator';
 const program = new Command();
 
 program
-  .name('nest-dto-testgen')
+  .name('nest-testgen')
   .description('Generate Jest/Supertest tests from NestJS controllers and DTOs.')
   .option('-p, --project <path>', 'Path to the NestJS project root', '.')
   .option('-o, --output <path>', 'Output directory for generated tests', 'generated-tests')
@@ -27,3 +27,4 @@ program
   });
 
 program.parse(process.argv);
+
