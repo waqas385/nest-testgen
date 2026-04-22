@@ -1,0 +1,33 @@
+{
+  "name": "nest-dto-testgen",
+  "version": "0.1.0",
+  "description": "Generate Jest/Supertest endpoint tests from NestJS controllers and DTOs.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "nest-dto-testgen": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/index.ts",
+    "generate": "npm run build && node dist/index.js"
+  },
+  "keywords": [
+    "nestjs",
+    "dto",
+    "test-generator",
+    "supertest",
+    "jest"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.0.0",
+    "glob": "^10.3.0",
+    "ts-morph": "^17.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.8.3"
+  }
+}
