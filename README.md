@@ -1,6 +1,6 @@
 # nest-testgen
 
-Generate Jest/Supertest endpoint test scaffolding from NestJS controllers and DTOs.
+Generate Jest/Supertest endpoint test scaffolding from NestJS controllers and DTOs, and automatically wire the Nest project for running those tests.
 
 ## What it does
 
@@ -17,35 +17,37 @@ cd packages/nest-testgen
 npm install
 ```
 
-2. Install test dependencies in the NestJS project where you will run generated e2e tests:
+2. Generate and auto-setup tests for your NestJS project:
 
 ```bash
-npm install --save-dev @nestjs/testing jest ts-jest @types/jest supertest
+npm run dev -- --project ../../ --output test --test-file generated.e2e-spec.ts --overwrite
 ```
 
-3. Generate tests for your NestJS project:
+This command now does all of the following by default:
 
-```bash
-npm run dev -- --project ../../ --output generated-tests
-```
+- Generates the e2e test file.
+- Detects missing test setup and initializes it (after confirmation prompt).
+- Adds missing test scripts in `package.json` (`test`, `test:watch`, `test:cov`, `test:e2e`, `test:e2e:generated`).
+- Adds default `jest` config in `package.json` if missing.
+- Updates Jest e2e config (`test/jest-e2e.json` or the `--config` path from `test:e2e` script) with:
+  - `"moduleNameMapper": { "^src/(.*)$": "<rootDir>/../src/$1" }`
+- Adds/updates `test:e2e:generated` in the target project's `package.json`.
 
-4. Add a script in your NestJS project's `package.json` to run the generated e2e file:
-
-```json
-{
-  "scripts": {
-    "test:e2e:generated": "jest generated-tests/generated.e2e-spec.ts --runInBand"
-  }
-}
-```
-
-5. Run the generated tests:
+3. Run generated tests:
 
 ```bash
 npm run test:e2e:generated
 ```
 
-6. The scaffolded test file will be written to the configured output directory.
+4. Optional: include dependency installation and immediate test execution:
+
+```bash
+npm run dev -- --project ../../ --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests
+```
+
+If you want to skip prompts and auto-approve setup changes, add `--yes`.
+If you want to preview all changes without modifying files, add `--dry-run`.
+If you need machine-readable output for CI, add `--json`.
 
 ## CLI Options
 
@@ -54,12 +56,43 @@ npm run test:e2e:generated
 - `--controllers <glob>`: Controller glob pattern (default: `src/**/*.controller.ts`)
 - `--test-file <name>`: Output file name (default: `generated.e2e-spec.ts`)
 - `--overwrite`: Overwrite existing generated test file
+- `--no-setup`: Skip Jest/package.json auto-setup changes
+- `--install-test-deps`: Install missing e2e test dependencies in target project
+- `--run-generated-tests`: Run `npm run test:e2e:generated` after generation
+- `--yes`: Auto-approve setup/init changes when project test config is missing
+- `--dry-run`: Preview generated/updated files, scripts, config, deps, and test run command without writing anything
+- `--json`: Print machine-readable JSON result (and JSON errors)
 
 ## Example
 
 ```bash
-npm run dev -- --project ../../ --output ../../test/generated-tests --test-file generated.e2e-spec.ts --overwrite
+npm run dev -- --project ../../ --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests
 ```
+
+Dry run preview:
+
+```bash
+npm run dev -- --project ../../ --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests --dry-run
+```
+
+CI-friendly preview:
+
+```bash
+npm run dev -- --project ../../ --output test --test-file generated.e2e-spec.ts --overwrite --dry-run --yes --json
+```
+
+CI-friendly apply:
+
+```bash
+npm run dev -- --project ../../ --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --yes --json
+```
+
+## Cross-platform support
+
+- Works on Linux, macOS, and Windows.
+- Generated npm scripts and Jest paths use forward slashes for compatibility.
+- Uses Node APIs (`path`, `fs`) for file handling rather than shell-specific path logic.
+- For non-interactive environments (CI), use `--yes` to bypass prompts.
 
 ## Notes
 

@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
+import readline from 'readline';
 import { sync as globSync } from 'glob';
 import { Project, SourceFile, ClassDeclaration, SyntaxKind, Type, Node } from 'ts-morph';
 
@@ -9,6 +11,12 @@ interface GenerateOptions {
   controllerGlob: string;
   testFileName: string;
   overwrite: boolean;
+  setup: boolean;
+  installTestDeps: boolean;
+  runGeneratedTests: boolean;
+  autoApprove: boolean;
+  dryRun: boolean;
+  jsonOutput: boolean;
 }
 
 interface EndpointInfo {
@@ -19,7 +27,21 @@ interface EndpointInfo {
   bodyExample: Record<string, unknown> | null;
 }
 
-export async function generateTests(options: GenerateOptions): Promise<void> {
+interface GenerateResult {
+  dryRun: boolean;
+  projectRoot: string;
+  outputFile: string;
+  endpointCount: number;
+  setupApplied: boolean;
+  installedDependencies: string[];
+  ranGeneratedTests: boolean;
+  notes: string[];
+}
+
+type Logger = (message: string) => void;
+
+export async function generateTests(options: GenerateOptions): Promise<GenerateResult> {
+  const log: Logger = options.jsonOutput ? () => undefined : (message) => console.log(message);
   const projectRoot = path.resolve(options.projectRoot);
   const tsconfigPath = path.join(projectRoot, 'tsconfig.json');
 
@@ -57,16 +79,409 @@ export async function generateTests(options: GenerateOptions): Promise<void> {
   }
 
   const outputDirectory = path.resolve(projectRoot, options.outputDir);
-  fs.mkdirSync(outputDirectory, { recursive: true });
-
   const outputFile = path.join(outputDirectory, options.testFileName);
   if (fs.existsSync(outputFile) && !options.overwrite) {
     throw new Error(`Output file already exists. Use --overwrite to replace it: ${outputFile}`);
   }
 
+  if (options.dryRun) {
+    const notes = await previewPlannedChanges({
+      projectRoot,
+      outputDirectory,
+      outputFile,
+      testFileName: options.testFileName,
+      endpointCount: endpoints.length,
+      setup: options.setup,
+      installTestDeps: options.installTestDeps,
+      runGeneratedTests: options.runGeneratedTests,
+      logger: log,
+    });
+    return {
+      dryRun: true,
+      projectRoot,
+      outputFile,
+      endpointCount: endpoints.length,
+      setupApplied: false,
+      installedDependencies: [],
+      ranGeneratedTests: false,
+      notes,
+    };
+  }
+
+  fs.mkdirSync(outputDirectory, { recursive: true });
   const contents = buildTestFile(projectRoot, outputFile, endpoints);
   fs.writeFileSync(outputFile, contents, 'utf8');
-  console.log(`Generated ${outputFile} with ${endpoints.length} endpoint templates.`);
+  log(`Generated ${outputFile} with ${endpoints.length} endpoint templates.`);
+  const notes: string[] = [];
+
+  if (options.setup) {
+    const setupResult = await setupTestingProject({
+      projectRoot,
+      outputDirectory,
+      testFileName: options.testFileName,
+      autoApprove: options.autoApprove,
+    });
+    const scriptName = upsertGeneratedTestScript(projectRoot, outputDirectory, options.testFileName, setupResult.jestConfigPath);
+    log(`Updated Jest e2e config: ${path.relative(projectRoot, setupResult.jestConfigPath)}`);
+    log(`Updated package script: ${scriptName}`);
+    notes.push(`updated_jest_config:${path.relative(projectRoot, setupResult.jestConfigPath)}`);
+    notes.push(`updated_script:${scriptName}`);
+    if (setupResult.createdJestE2EConfig) {
+      log(`Created missing Jest e2e config: ${path.relative(projectRoot, setupResult.jestConfigPath)}`);
+      notes.push(`created_jest_e2e_config:${path.relative(projectRoot, setupResult.jestConfigPath)}`);
+    }
+    if (setupResult.addedScripts.length > 0) {
+      log(`Added missing package scripts: ${setupResult.addedScripts.join(', ')}`);
+      notes.push(`added_scripts:${setupResult.addedScripts.join(',')}`);
+    }
+    if (setupResult.addedPackageJestConfig) {
+      log('Added missing package.json Jest configuration.');
+      notes.push('added_package_jest_config');
+    }
+  }
+
+  let installedDependencies: string[] = [];
+  if (options.installTestDeps) {
+    installedDependencies = installMissingTestDependencies(projectRoot, log);
+  }
+
+  if (options.runGeneratedTests) {
+    runGeneratedTests(projectRoot, log);
+  }
+
+  return {
+    dryRun: false,
+    projectRoot,
+    outputFile,
+    endpointCount: endpoints.length,
+    setupApplied: options.setup,
+    installedDependencies,
+    ranGeneratedTests: options.runGeneratedTests,
+    notes,
+  };
+}
+
+interface SetupResult {
+  jestConfigPath: string;
+  createdJestE2EConfig: boolean;
+  addedScripts: string[];
+  addedPackageJestConfig: boolean;
+}
+
+interface SetupOptions {
+  projectRoot: string;
+  outputDirectory: string;
+  testFileName: string;
+  autoApprove: boolean;
+}
+
+interface PreviewOptions {
+  projectRoot: string;
+  outputDirectory: string;
+  outputFile: string;
+  testFileName: string;
+  endpointCount: number;
+  setup: boolean;
+  installTestDeps: boolean;
+  runGeneratedTests: boolean;
+  logger: Logger;
+}
+
+async function previewPlannedChanges(options: PreviewOptions): Promise<string[]> {
+  const notes: string[] = [];
+  options.logger('Dry run mode enabled. No files will be written.');
+  options.logger(`Would generate ${options.outputFile} with ${options.endpointCount} endpoint templates.`);
+  notes.push('dry_run');
+  notes.push(`would_generate:${options.outputFile}`);
+
+  if (options.setup) {
+    const packageJsonPath = path.join(options.projectRoot, 'package.json');
+    const packageJson = readJsonFile<Record<string, unknown>>(packageJsonPath);
+    const scripts = ensureObjectRecord(packageJson.scripts);
+    const desiredScripts = buildDefaultScripts(options.projectRoot, options.outputDirectory, options.testFileName);
+    const missingScripts = Object.keys(desiredScripts).filter((name) => !scripts[name]);
+    const jestConfigPath = resolveJestE2EConfigPath(options.projectRoot, scripts);
+    const jestConfigExists = fs.existsSync(jestConfigPath);
+
+    options.logger(`Would ensure Jest e2e config: ${jestConfigPath}`);
+    notes.push(`would_ensure_jest_e2e_config:${jestConfigPath}`);
+    if (!jestConfigExists) {
+      options.logger(`- Would create ${path.relative(options.projectRoot, jestConfigPath)}`);
+      notes.push(`would_create:${path.relative(options.projectRoot, jestConfigPath)}`);
+    }
+    options.logger('- Would ensure moduleNameMapper "^src/(.*)$" -> "<rootDir>/../src/$1"');
+    notes.push('would_ensure_moduleNameMapper');
+
+    if (missingScripts.length > 0) {
+      options.logger(`- Would add missing package scripts: ${missingScripts.join(', ')}`);
+      notes.push(`would_add_scripts:${missingScripts.join(',')}`);
+    }
+    if (!packageJson.jest) {
+      options.logger('- Would add default Jest config in package.json');
+      notes.push('would_add_package_jest_config');
+    }
+
+    const generatedScript = `jest ${toPosix(path.relative(options.projectRoot, path.join(options.outputDirectory, options.testFileName)))} --config ./${toPosix(path.relative(options.projectRoot, jestConfigPath))} --runInBand`;
+    options.logger(`- Would set test:e2e:generated = ${generatedScript}`);
+    notes.push(`would_set_script:test:e2e:generated=${generatedScript}`);
+  }
+
+  if (options.installTestDeps) {
+    const missingDeps = getMissingTestDependencies(options.projectRoot);
+    if (missingDeps.length === 0) {
+      options.logger('All required test dependencies are already installed.');
+      notes.push('deps_already_installed');
+    } else {
+      options.logger(`Would install missing devDependencies: ${missingDeps.join(', ')}`);
+      notes.push(`would_install_deps:${missingDeps.join(',')}`);
+    }
+  }
+
+  if (options.runGeneratedTests) {
+    options.logger('Would run: npm run test:e2e:generated');
+    notes.push('would_run:npm run test:e2e:generated');
+  }
+
+  return notes;
+}
+
+async function setupTestingProject(options: SetupOptions): Promise<SetupResult> {
+  const packageJsonPath = path.join(options.projectRoot, 'package.json');
+  const packageJson = readJsonFile<Record<string, unknown>>(packageJsonPath);
+  const scripts = ensureObjectRecord(packageJson.scripts);
+  const desiredScripts = buildDefaultScripts(options.projectRoot, options.outputDirectory, options.testFileName);
+
+  const missingScripts = Object.keys(desiredScripts).filter((name) => !scripts[name]);
+  const shouldAddPackageJestConfig = !packageJson.jest;
+  const jestConfigPath = resolveJestE2EConfigPath(options.projectRoot, scripts);
+  const shouldCreateJestE2EConfig = !fs.existsSync(jestConfigPath);
+
+  const plannedChanges: string[] = [];
+  if (missingScripts.length > 0) {
+    plannedChanges.push(`add package.json scripts: ${missingScripts.join(', ')}`);
+  }
+  if (shouldAddPackageJestConfig) {
+    plannedChanges.push('add package.json Jest config');
+  }
+  if (shouldCreateJestE2EConfig) {
+    plannedChanges.push(`create ${path.relative(options.projectRoot, jestConfigPath)}`);
+  }
+
+  if (plannedChanges.length > 0) {
+    const approved = await confirmSetupChanges(plannedChanges, options.autoApprove);
+    if (!approved) {
+      throw new Error('Setup changes were not approved. Re-run with --yes to auto-approve.');
+    }
+  }
+
+  for (const scriptName of missingScripts) {
+    scripts[scriptName] = desiredScripts[scriptName];
+  }
+  packageJson.scripts = scripts;
+
+  if (shouldAddPackageJestConfig) {
+    packageJson.jest = defaultPackageJestConfig();
+  }
+
+  writeJsonFile(packageJsonPath, packageJson);
+  upsertJestE2EConfig(jestConfigPath);
+
+  return {
+    jestConfigPath,
+    createdJestE2EConfig: shouldCreateJestE2EConfig,
+    addedScripts: missingScripts,
+    addedPackageJestConfig: shouldAddPackageJestConfig,
+  };
+}
+
+function resolveJestE2EConfigPath(projectRoot: string, scripts: Record<string, string>): string {
+  const configuredPath = extractJestConfigPathFromScript(scripts['test:e2e']);
+  const fallbackPath = path.join(projectRoot, 'test', 'jest-e2e.json');
+  return configuredPath ? path.resolve(projectRoot, configuredPath) : fallbackPath;
+}
+
+function buildDefaultScripts(projectRoot: string, outputDirectory: string, testFileName: string): Record<string, string> {
+  const generatedSpecPath = toPosix(path.relative(projectRoot, path.join(outputDirectory, testFileName)));
+  return {
+    test: 'jest',
+    'test:watch': 'jest --watch',
+    'test:cov': 'jest --coverage',
+    'test:e2e': 'jest --config ./test/jest-e2e.json',
+    'test:e2e:generated': `jest ${generatedSpecPath} --config ./test/jest-e2e.json --runInBand`,
+  };
+}
+
+function defaultPackageJestConfig(): Record<string, unknown> {
+  return {
+    moduleFileExtensions: ['js', 'json', 'ts'],
+    rootDir: 'src',
+    testRegex: '.*\\.spec\\.ts$',
+    transform: {
+      '^.+\\.(t|j)s$': 'ts-jest',
+    },
+    collectCoverageFrom: ['**/*.(t|j)s'],
+    coverageDirectory: '../coverage',
+    testEnvironment: 'node',
+  };
+}
+
+async function confirmSetupChanges(plannedChanges: string[], autoApprove: boolean): Promise<boolean> {
+  if (autoApprove) {
+    return true;
+  }
+
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      `Setup changes need confirmation: ${plannedChanges.join('; ')}. ` +
+        `Re-run with --yes to auto-approve these changes.`,
+    );
+  }
+
+  console.log('The target project is missing test setup. Proposed changes:');
+  for (const change of plannedChanges) {
+    console.log(`- ${change}`);
+  }
+
+  const answer = await askQuestion('Apply these setup changes? (y/N): ');
+  return ['y', 'yes'].includes(answer.trim().toLowerCase());
+}
+
+function askQuestion(prompt: string): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
+}
+
+function upsertJestE2EConfig(jestConfigPath: string): void {
+  if (!fs.existsSync(jestConfigPath)) {
+    fs.mkdirSync(path.dirname(jestConfigPath), { recursive: true });
+    writeJsonFile(jestConfigPath, defaultJestE2EConfig());
+  }
+
+  const jestConfig = readJsonFile<Record<string, unknown>>(jestConfigPath);
+  const moduleNameMapper = ensureObjectRecord(jestConfig.moduleNameMapper);
+  const srcMapperKey = '^src/(.*)$';
+  const srcMapperValue = '<rootDir>/../src/$1';
+
+  if (!moduleNameMapper[srcMapperKey]) {
+    moduleNameMapper[srcMapperKey] = srcMapperValue;
+    jestConfig.moduleNameMapper = moduleNameMapper;
+    writeJsonFile(jestConfigPath, jestConfig);
+  }
+
+}
+
+function defaultJestE2EConfig(): Record<string, unknown> {
+  return {
+    moduleFileExtensions: ['js', 'json', 'ts'],
+    rootDir: '.',
+    testEnvironment: 'node',
+    testRegex: '.e2e-spec.ts$',
+    transform: {
+      '^.+\\.(t|j)s$': 'ts-jest',
+    },
+  };
+}
+
+function upsertGeneratedTestScript(
+  projectRoot: string,
+  outputDirectory: string,
+  testFileName: string,
+  jestConfigPath: string,
+): string {
+  const packageJsonPath = path.join(projectRoot, 'package.json');
+  const packageJson = readJsonFile<Record<string, unknown>>(packageJsonPath);
+  const scripts = ensureObjectRecord(packageJson.scripts);
+  const scriptName = 'test:e2e:generated';
+
+  const relativeSpecPath = toPosix(path.relative(projectRoot, path.join(outputDirectory, testFileName)));
+  const relativeJestConfigPath = toPosix(path.relative(projectRoot, jestConfigPath));
+  scripts[scriptName] = `jest ${relativeSpecPath} --config ./${relativeJestConfigPath} --runInBand`;
+  packageJson.scripts = scripts;
+
+  writeJsonFile(packageJsonPath, packageJson);
+  return scriptName;
+}
+
+function installMissingTestDependencies(projectRoot: string, logger: Logger): string[] {
+  const missingDeps = getMissingTestDependencies(projectRoot);
+  if (missingDeps.length === 0) {
+    logger('All required test dependencies are already installed.');
+    return [];
+  }
+
+  const command = `npm install --save-dev ${missingDeps.join(' ')}`;
+  logger(`Installing missing test dependencies: ${missingDeps.join(', ')}`);
+  execSync(command, {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+  return missingDeps;
+}
+
+function getMissingTestDependencies(projectRoot: string): string[] {
+  const packageJsonPath = path.join(projectRoot, 'package.json');
+  const packageJson = readJsonFile<Record<string, unknown>>(packageJsonPath);
+  const dependencies = ensureObjectRecord(packageJson.dependencies);
+  const devDependencies = ensureObjectRecord(packageJson.devDependencies);
+  const requiredDeps = [
+    '@nestjs/testing',
+    'jest',
+    'ts-jest',
+    '@types/jest',
+    'supertest',
+    '@types/supertest',
+  ];
+
+  return requiredDeps.filter((dep) => !dependencies[dep] && !devDependencies[dep]);
+}
+
+function runGeneratedTests(projectRoot: string, logger: Logger): void {
+  const command = 'npm run test:e2e:generated';
+  logger(`Running generated tests: ${command}`);
+  execSync(command, {
+    cwd: projectRoot,
+    stdio: 'inherit',
+  });
+}
+
+function extractJestConfigPathFromScript(script: string | undefined): string | undefined {
+  if (!script) {
+    return undefined;
+  }
+
+  const configRegex = /--config\s+(?:"([^"]+)"|'([^']+)'|([^\s]+))/;
+  const match = script.match(configRegex);
+  return match ? match[1] || match[2] || match[3] : undefined;
+}
+
+function ensureObjectRecord(value: unknown): Record<string, string> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return { ...(value as Record<string, string>) };
+  }
+  return {};
+}
+
+function readJsonFile<T>(filePath: string): T {
+  const raw = fs.readFileSync(filePath, 'utf8');
+  return JSON.parse(raw) as T;
+}
+
+function writeJsonFile(filePath: string, value: unknown): void {
+  const formatted = `${JSON.stringify(value, null, 2)}\n`;
+  fs.writeFileSync(filePath, formatted, 'utf8');
+}
+
+function toPosix(value: string): string {
+  return value.replace(/\\/g, '/');
 }
 
 function parseControllerFile(sourceFile: SourceFile, project: Project): EndpointInfo[] {
@@ -305,7 +720,7 @@ function buildTestFile(projectRoot: string, outputFile: string, endpoints: Endpo
 
   return `import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import request from 'supertest';
+import * as request from 'supertest';
 import { AppModule } from '${appModuleImport}';
 
 describe('Generated NestJS endpoint tests', () => {
