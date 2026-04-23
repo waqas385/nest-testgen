@@ -1,6 +1,6 @@
 {
   "name": "@waqas385/nestjs-testgen",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Generate Jest/Supertest endpoint tests from NestJS controllers and DTOs.",
   "homepage": "https://github.com/waqas385/nest-testgen#readme",
   "repository": {
@@ -39,4 +39,3 @@
     "typescript": "^5.8.3"
   }
 }
-
