@@ -1,6 +1,6 @@
 {
   "name": "nest-testgen",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Generate Jest/Supertest endpoint tests from NestJS controllers and DTOs.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
