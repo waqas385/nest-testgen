@@ -118,6 +118,12 @@ npm run nestjs-testgen -- --project . --output test --test-file generated.e2e-sp
 - Uses Node APIs (`path`, `fs`) for file handling rather than shell-specific path logic.
 - For non-interactive environments (CI), use `--yes` to bypass prompts.
 
+## Bundlephobia note
+
+- This package is a Node.js CLI tool for NestJS projects and is not intended for browser bundling.
+- Bundlephobia may report a build error because it attempts a browser-focused bundle and this package uses Node built-ins like `fs`, `path`, `readline`, and `child_process`.
+- Use `npm install`, `npm run build`, and CLI execution in a Node environment as the source of truth for package health.
+
 ## Notes
 
 - The package uses `ts-morph` to analyze TypeScript AST and extract route and DTO metadata.
