@@ -1,6 +1,8 @@
 # @waqas385/nestjs-testgen
 
-Generate Jest/Supertest endpoint test scaffolding from NestJS controllers and DTOs, and automatically wire the Nest project for running those tests.
+Generate NestJS e2e test scaffolding with Jest and Supertest from controllers and DTOs, and automatically wire your project to run generated tests.
+
+Keywords: NestJS test generator, NestJS e2e testing, Jest e2e, Supertest, DTO-based test scaffolding.
 
 ## What it does
 
@@ -20,6 +22,14 @@ npm install --save-dev @waqas385/nestjs-testgen
 
 ```bash
 npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite
+```
+
+Quick start in one block:
+
+```bash
+npm i -D @waqas385/nestjs-testgen
+npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite
+npm run test:e2e:generated
 ```
 
 This command now does all of the following by default:
@@ -128,3 +138,14 @@ npm run nestjs-testgen -- --project . --output test --test-file generated.e2e-sp
 
 - The package uses `ts-morph` to analyze TypeScript AST and extract route and DTO metadata.
 - Generated payload values are best-effort examples and may need manual adjustment for application-specific business logic.
+
+## Discoverability and migration
+
+- Package name: `@waqas385/nestjs-testgen`
+- CLI command: `nestjs-testgen`
+- If you used older package names, migrate with:
+
+```bash
+npm uninstall nest-testgen
+npm i -D @waqas385/nestjs-testgen
+```

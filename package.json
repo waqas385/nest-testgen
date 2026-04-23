@@ -22,10 +22,18 @@
   },
   "keywords": [
     "nestjs",
-    "dto",
+    "e2e",
+    "e2e-testing",
+    "integration-testing",
+    "api-testing",
+    "nestjs-testing",
     "test-generator",
+    "jest-e2e",
     "supertest",
-    "jest"
+    "jest",
+    "typescript",
+    "cli",
+    "dto"
   ],
   "license": "MIT",
   "dependencies": {
