@@ -5,7 +5,7 @@ import { generateTests } from './generator';
 const program = new Command();
 
 program
-  .name('nest-testgen')
+  .name('nestjs-testgen')
   .description('Generate and wire Jest/Supertest endpoint tests for NestJS projects.')
   .option('-p, --project <path>', 'Path to the NestJS project root', '.')
   .option('-o, --output <path>', 'Output directory for generated tests', 'generated-tests')

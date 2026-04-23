@@ -139,8 +139,8 @@ export async function generateTests(options: GenerateOptions): Promise<GenerateR
       notes.push('added_package_jest_config');
     }
     if (setupResult.addedNestTestgenDependency) {
-      log('Added nest-testgen to target project devDependencies.');
-      notes.push('added_dev_dependency:nest-testgen');
+      log('Added @waqas385/nestjs-testgen to target project devDependencies.');
+      notes.push('added_dev_dependency:@waqas385/nestjs-testgen');
     }
   }
 
@@ -227,9 +227,9 @@ async function previewPlannedChanges(options: PreviewOptions): Promise<string[]>
       options.logger('- Would add default Jest config in package.json');
       notes.push('would_add_package_jest_config');
     }
-    if (!devDependencies['nest-testgen'] && !dependencies['nest-testgen']) {
-      options.logger(`- Would add devDependency nest-testgen@^${getSelfVersion()}`);
-      notes.push(`would_add_dev_dependency:nest-testgen@^${getSelfVersion()}`);
+    if (!devDependencies['@waqas385/nestjs-testgen'] && !dependencies['@waqas385/nestjs-testgen']) {
+      options.logger(`- Would add devDependency @waqas385/nestjs-testgen@^${getSelfVersion()}`);
+      notes.push(`would_add_dev_dependency:@waqas385/nestjs-testgen@^${getSelfVersion()}`);
     }
 
     const generatedScript = `jest ${toPosix(path.relative(options.projectRoot, path.join(options.outputDirectory, options.testFileName)))} --config ./${toPosix(path.relative(options.projectRoot, jestConfigPath))} --runInBand`;
@@ -263,7 +263,9 @@ async function setupTestingProject(options: SetupOptions): Promise<SetupResult> 
   const desiredScripts = buildDefaultScripts(options.projectRoot, options.outputDirectory, options.testFileName);
   const devDependencies = ensureObjectRecord(packageJson.devDependencies);
   const dependencies = ensureObjectRecord(packageJson.dependencies);
-  const hasNestTestgenDependency = Boolean(devDependencies['nest-testgen'] || dependencies['nest-testgen']);
+  const hasNestTestgenDependency = Boolean(
+    devDependencies['@waqas385/nestjs-testgen'] || dependencies['@waqas385/nestjs-testgen'],
+  );
   const shouldAddNestTestgenDependency = !hasNestTestgenDependency;
   const nestTestgenVersion = getSelfVersion();
 
@@ -283,7 +285,7 @@ async function setupTestingProject(options: SetupOptions): Promise<SetupResult> 
     plannedChanges.push(`create ${path.relative(options.projectRoot, jestConfigPath)}`);
   }
   if (shouldAddNestTestgenDependency) {
-    plannedChanges.push(`add devDependency nest-testgen@^${nestTestgenVersion}`);
+    plannedChanges.push(`add devDependency @waqas385/nestjs-testgen@^${nestTestgenVersion}`);
   }
 
   if (plannedChanges.length > 0) {
@@ -302,7 +304,7 @@ async function setupTestingProject(options: SetupOptions): Promise<SetupResult> 
     packageJson.jest = defaultPackageJestConfig();
   }
   if (shouldAddNestTestgenDependency) {
-    devDependencies['nest-testgen'] = `^${nestTestgenVersion}`;
+    devDependencies['@waqas385/nestjs-testgen'] = `^${nestTestgenVersion}`;
     packageJson.devDependencies = sortObjectByKey(devDependencies);
   }
 
@@ -333,7 +335,7 @@ function buildDefaultScripts(projectRoot: string, outputDirectory: string, testF
     'test:cov': 'jest --coverage',
     'test:e2e': 'jest --config ./test/jest-e2e.json',
     'test:e2e:generated': `jest ${generatedSpecPath} --config ./test/jest-e2e.json --runInBand`,
-    'test:generate': `nest-testgen --project . --output ${outputDirArg} --test-file ${testFileName} --overwrite`,
+    'test:generate': `nestjs-testgen --project . --output ${outputDirArg} --test-file ${testFileName} --overwrite`,
   };
 }
 

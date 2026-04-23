@@ -1,4 +1,4 @@
-# nest-testgen
+# @waqas385/nestjs-testgen
 
 Generate Jest/Supertest endpoint test scaffolding from NestJS controllers and DTOs, and automatically wire the Nest project for running those tests.
 
@@ -13,13 +13,13 @@ It is intended for projects where DTOs are properly defined and the NestJS contr
 1. Install in your NestJS project:
 
 ```bash
-npm install --save-dev nest-testgen
+npm install --save-dev @waqas385/nestjs-testgen
 ```
 
 2. Generate and auto-setup tests for your NestJS project:
 
 ```bash
-npx nest-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite
+npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite
 ```
 
 This command now does all of the following by default:
@@ -29,7 +29,7 @@ This command now does all of the following by default:
 - Adds missing test scripts in `package.json` (`test`, `test:watch`, `test:cov`, `test:e2e`, `test:e2e:generated`).
 - Adds a generator script in `package.json`: `test:generate`.
 - Adds default `jest` config in `package.json` if missing.
-- Adds `nest-testgen` to target project `devDependencies` if missing.
+- Adds `@waqas385/nestjs-testgen` to target project `devDependencies` if missing.
 - Updates Jest e2e config (`test/jest-e2e.json` or the `--config` path from `test:e2e` script) with:
   - `"moduleNameMapper": { "^src/(.*)$": "<rootDir>/../src/$1" }`
 - Adds/updates `test:e2e:generated` in the target project's `package.json`.
@@ -50,7 +50,7 @@ npm run test:generate
 4. Optional: include dependency installation and immediate test execution:
 
 ```bash
-npx nest-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests
+npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests
 ```
 
 If you want to skip prompts and auto-approve setup changes, add `--yes`.
@@ -74,25 +74,25 @@ If you need machine-readable output for CI, add `--json`.
 ## Example
 
 ```bash
-npx nest-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests
+npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests
 ```
 
 Dry run preview:
 
 ```bash
-npx nest-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests --dry-run
+npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --run-generated-tests --dry-run
 ```
 
 CI-friendly preview:
 
 ```bash
-npx nest-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --dry-run --yes --json
+npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --dry-run --yes --json
 ```
 
 CI-friendly apply:
 
 ```bash
-npx nest-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --yes --json
+npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e-spec.ts --overwrite --install-test-deps --yes --json
 ```
 
 Run via npm script (optional):
@@ -100,7 +100,7 @@ Run via npm script (optional):
 ```json
 {
   "scripts": {
-    "nest-testgen": "nest-testgen"
+    "nestjs-testgen": "nestjs-testgen"
   }
 }
 ```
@@ -108,7 +108,7 @@ Run via npm script (optional):
 Then:
 
 ```bash
-npm run nest-testgen -- --project . --output test --test-file generated.e2e-spec.ts --overwrite
+npm run nestjs-testgen -- --project . --output test --test-file generated.e2e-spec.ts --overwrite
 ```
 
 ## Cross-platform support

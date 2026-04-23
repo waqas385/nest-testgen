@@ -1,11 +1,11 @@
 {
-  "name": "nest-testgen",
-  "version": "0.1.1",
+  "name": "@waqas385/nestjs-testgen",
+  "version": "0.1.0",
   "description": "Generate Jest/Supertest endpoint tests from NestJS controllers and DTOs.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "nest-testgen": "dist/index.js"
+    "nestjs-testgen": "dist/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
