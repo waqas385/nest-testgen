@@ -138,6 +138,10 @@ export async function generateTests(options: GenerateOptions): Promise<GenerateR
       log('Added missing package.json Jest configuration.');
       notes.push('added_package_jest_config');
     }
+    if (setupResult.addedNestTestgenDependency) {
+      log('Added nest-testgen to target project devDependencies.');
+      notes.push('added_dev_dependency:nest-testgen');
+    }
   }
 
   let installedDependencies: string[] = [];
@@ -166,6 +170,7 @@ interface SetupResult {
   createdJestE2EConfig: boolean;
   addedScripts: string[];
   addedPackageJestConfig: boolean;
+  addedNestTestgenDependency: boolean;
 }
 
 interface SetupOptions {
@@ -198,6 +203,8 @@ async function previewPlannedChanges(options: PreviewOptions): Promise<string[]>
     const packageJsonPath = path.join(options.projectRoot, 'package.json');
     const packageJson = readJsonFile<Record<string, unknown>>(packageJsonPath);
     const scripts = ensureObjectRecord(packageJson.scripts);
+    const devDependencies = ensureObjectRecord(packageJson.devDependencies);
+    const dependencies = ensureObjectRecord(packageJson.dependencies);
     const desiredScripts = buildDefaultScripts(options.projectRoot, options.outputDirectory, options.testFileName);
     const missingScripts = Object.keys(desiredScripts).filter((name) => !scripts[name]);
     const jestConfigPath = resolveJestE2EConfigPath(options.projectRoot, scripts);
@@ -219,6 +226,10 @@ async function previewPlannedChanges(options: PreviewOptions): Promise<string[]>
     if (!packageJson.jest) {
       options.logger('- Would add default Jest config in package.json');
       notes.push('would_add_package_jest_config');
+    }
+    if (!devDependencies['nest-testgen'] && !dependencies['nest-testgen']) {
+      options.logger(`- Would add devDependency nest-testgen@^${getSelfVersion()}`);
+      notes.push(`would_add_dev_dependency:nest-testgen@^${getSelfVersion()}`);
     }
 
     const generatedScript = `jest ${toPosix(path.relative(options.projectRoot, path.join(options.outputDirectory, options.testFileName)))} --config ./${toPosix(path.relative(options.projectRoot, jestConfigPath))} --runInBand`;
@@ -250,6 +261,11 @@ async function setupTestingProject(options: SetupOptions): Promise<SetupResult> 
   const packageJson = readJsonFile<Record<string, unknown>>(packageJsonPath);
   const scripts = ensureObjectRecord(packageJson.scripts);
   const desiredScripts = buildDefaultScripts(options.projectRoot, options.outputDirectory, options.testFileName);
+  const devDependencies = ensureObjectRecord(packageJson.devDependencies);
+  const dependencies = ensureObjectRecord(packageJson.dependencies);
+  const hasNestTestgenDependency = Boolean(devDependencies['nest-testgen'] || dependencies['nest-testgen']);
+  const shouldAddNestTestgenDependency = !hasNestTestgenDependency;
+  const nestTestgenVersion = getSelfVersion();
 
   const missingScripts = Object.keys(desiredScripts).filter((name) => !scripts[name]);
   const shouldAddPackageJestConfig = !packageJson.jest;
@@ -265,6 +281,9 @@ async function setupTestingProject(options: SetupOptions): Promise<SetupResult> 
   }
   if (shouldCreateJestE2EConfig) {
     plannedChanges.push(`create ${path.relative(options.projectRoot, jestConfigPath)}`);
+  }
+  if (shouldAddNestTestgenDependency) {
+    plannedChanges.push(`add devDependency nest-testgen@^${nestTestgenVersion}`);
   }
 
   if (plannedChanges.length > 0) {
@@ -282,6 +301,10 @@ async function setupTestingProject(options: SetupOptions): Promise<SetupResult> 
   if (shouldAddPackageJestConfig) {
     packageJson.jest = defaultPackageJestConfig();
   }
+  if (shouldAddNestTestgenDependency) {
+    devDependencies['nest-testgen'] = `^${nestTestgenVersion}`;
+    packageJson.devDependencies = sortObjectByKey(devDependencies);
+  }
 
   writeJsonFile(packageJsonPath, packageJson);
   upsertJestE2EConfig(jestConfigPath);
@@ -291,6 +314,7 @@ async function setupTestingProject(options: SetupOptions): Promise<SetupResult> 
     createdJestE2EConfig: shouldCreateJestE2EConfig,
     addedScripts: missingScripts,
     addedPackageJestConfig: shouldAddPackageJestConfig,
+    addedNestTestgenDependency: shouldAddNestTestgenDependency,
   };
 }
 
@@ -302,12 +326,14 @@ function resolveJestE2EConfigPath(projectRoot: string, scripts: Record<string, s
 
 function buildDefaultScripts(projectRoot: string, outputDirectory: string, testFileName: string): Record<string, string> {
   const generatedSpecPath = toPosix(path.relative(projectRoot, path.join(outputDirectory, testFileName)));
+  const outputDirArg = toPosix(path.relative(projectRoot, outputDirectory)) || '.';
   return {
     test: 'jest',
     'test:watch': 'jest --watch',
     'test:cov': 'jest --coverage',
     'test:e2e': 'jest --config ./test/jest-e2e.json',
     'test:e2e:generated': `jest ${generatedSpecPath} --config ./test/jest-e2e.json --runInBand`,
+    'test:generate': `nest-testgen --project . --output ${outputDirArg} --test-file ${testFileName} --overwrite`,
   };
 }
 
@@ -470,6 +496,15 @@ function ensureObjectRecord(value: unknown): Record<string, string> {
   return {};
 }
 
+function sortObjectByKey(value: Record<string, string>): Record<string, string> {
+  return Object.keys(value)
+    .sort()
+    .reduce<Record<string, string>>((acc, key) => {
+      acc[key] = value[key];
+      return acc;
+    }, {});
+}
+
 function readJsonFile<T>(filePath: string): T {
   const raw = fs.readFileSync(filePath, 'utf8');
   return JSON.parse(raw) as T;
@@ -482,6 +517,16 @@ function writeJsonFile(filePath: string, value: unknown): void {
 
 function toPosix(value: string): string {
   return value.replace(/\\/g, '/');
+}
+
+function getSelfVersion(): string {
+  try {
+    const selfPackageJsonPath = path.resolve(__dirname, '..', 'package.json');
+    const selfPackageJson = readJsonFile<{ version?: string }>(selfPackageJsonPath);
+    return selfPackageJson.version || '0.1.0';
+  } catch {
+    return '0.1.0';
+  }
 }
 
 function parseControllerFile(sourceFile: SourceFile, project: Project): EndpointInfo[] {
