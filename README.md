@@ -1,8 +1,8 @@
 # @waqas385/nestjs-testgen
 
-Generate NestJS e2e test scaffolding with Jest and Supertest from controllers and DTOs, and automatically wire your project to run generated tests.
+**NestJS e2e testing CLI** — generate **Jest** and **Supertest** endpoint tests from **controllers** and **DTOs**, with optional wiring of `test:e2e`, Jest config, and npm scripts. Use this when you want **API / HTTP integration tests** or **automated test scaffolding** for a **TypeScript NestJS** backend.
 
-Keywords: NestJS test generator, NestJS e2e testing, Jest e2e, Supertest, DTO-based test scaffolding.
+**Related searches:** NestJS test generator, generate NestJS e2e tests, Jest e2e NestJS, Supertest scaffold, DTO-based API tests.
 
 ## What it does
 
@@ -66,6 +66,24 @@ npx @waqas385/nestjs-testgen --project . --output test --test-file generated.e2e
 If you want to skip prompts and auto-approve setup changes, add `--yes`.
 If you want to preview all changes without modifying files, add `--dry-run`.
 If you need machine-readable output for CI, add `--json`.
+
+## FAQ
+
+### How do I generate NestJS e2e tests with Jest and Supertest?
+
+Install `@waqas385/nestjs-testgen`, then run `npx @waqas385/nestjs-testgen` with `--project`, `--output`, and `--test-file`. See the [Usage](#usage) section and `--install-test-deps` if your project is missing test dependencies.
+
+### Is this for unit tests or end-to-end (e2e) tests?
+
+It targets **e2e / integration-style** HTTP tests against your Nest app (Supertest + Jest), not isolated unit tests of single functions.
+
+### Why does Bundlephobia show a build error?
+
+This is a **Node.js CLI**; browser bundlers fail on built-ins like `fs` and `path`. See [Bundlephobia note](#bundlephobia-note).
+
+### How do I run the CLI in CI?
+
+Use `--yes` to skip prompts and optionally `--json` for machine-readable output. See the CI examples in [Example](#example).
 
 ## CLI Options
 
@@ -149,3 +167,11 @@ npm run nestjs-testgen -- --project . --output test --test-file generated.e2e-sp
 npm uninstall nest-testgen
 npm i -D @waqas385/nestjs-testgen
 ```
+
+Deprecated legacy package (if you published it): point users to this package with `npm deprecate <old-name> "Use @waqas385/nestjs-testgen"` after you publish the replacement.
+
+Repository: [github.com/waqas385/nest-testgen](https://github.com/waqas385/nest-testgen).
+
+## Support
+
+If you run into problems while configuring or running this package, feel free to reach out by email at [waqas385@gmail.com](mailto:waqas385@gmail.com).

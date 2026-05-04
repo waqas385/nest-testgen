@@ -1,7 +1,8 @@
 {
   "name": "@waqas385/nestjs-testgen",
-  "version": "0.1.2",
-  "description": "Generate Jest/Supertest endpoint tests from NestJS controllers and DTOs.",
+  "version": "0.1.4",
+  "description": "NestJS e2e test generator CLI: scaffold Jest + Supertest API tests from controllers and DTOs, with optional Jest wiring and CI-friendly output.",
+  "author": "waqas385 <waqas385@gmail.com>",
   "homepage": "https://github.com/waqas385/nest-testgen#readme",
   "repository": {
     "type": "git",
@@ -33,7 +34,10 @@
     "jest",
     "typescript",
     "cli",
-    "dto"
+    "dto",
+    "endpoint-testing",
+    "http-testing",
+    "automated-testing"
   ],
   "license": "MIT",
   "dependencies": {
